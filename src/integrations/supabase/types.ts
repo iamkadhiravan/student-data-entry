@@ -14,10 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      predictions: {
+        Row: {
+          activities: number
+          assignments: number
+          attendance: number
+          confidence: number
+          created_at: string
+          id: string
+          internal_marks: number
+          prediction: string
+          student_id: string
+          study_hours: number
+        }
+        Insert: {
+          activities: number
+          assignments: number
+          attendance: number
+          confidence: number
+          created_at?: string
+          id?: string
+          internal_marks: number
+          prediction: string
+          student_id: string
+          study_hours: number
+        }
+        Update: {
+          activities?: number
+          assignments?: number
+          attendance?: number
+          confidence?: number
+          created_at?: string
+          id?: string
+          internal_marks?: number
+          prediction?: string
+          student_id?: string
+          study_hours?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
-      [_ in never]: never
+      predictions_summary: {
+        Row: {
+          avg_confidence: number | null
+          fail_count: number | null
+          pass_count: number | null
+          prediction_date: string | null
+          total_predictions: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never
