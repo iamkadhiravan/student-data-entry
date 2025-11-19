@@ -5,8 +5,10 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Calculator } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface FormData {
+  studentId: string;
   attendance: string;
   studyHours: string;
   internalMarks: string;
@@ -25,43 +27,94 @@ interface ManualInputFormProps {
 
 const ManualInputForm = ({ onPredict }: ManualInputFormProps) => {
   const [formData, setFormData] = useState<FormData>({
+    studentId: "",
     attendance: "",
     studyHours: "",
     internalMarks: "",
     assignments: "",
     activities: "",
   });
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate all fields are filled
     if (Object.values(formData).some(value => value === "")) {
       toast.error("Please fill all fields");
       return;
     }
 
-    // Simple prediction logic (mock ML model)
-    const attendance = parseFloat(formData.attendance);
-    const studyHours = parseFloat(formData.studyHours);
-    const internalMarks = parseFloat(formData.internalMarks);
-    const assignments = parseInt(formData.assignments);
-    const activities = parseInt(formData.activities);
+    setIsLoading(true);
 
-    // Calculate score (weighted average)
-    const score = (
-      attendance * 0.25 +
-      (studyHours / 10) * 15 * 0.15 +
-      internalMarks * 0.35 +
-      (assignments / 10) * 10 * 0.15 +
-      (activities / 5) * 10 * 0.10
-    );
+    try {
+      const attendance = parseFloat(formData.attendance);
+      const studyHours = parseFloat(formData.studyHours);
+      const internalMarks = parseFloat(formData.internalMarks);
+      const assignments = parseInt(formData.assignments);
+      const activities = parseInt(formData.activities);
 
-    const prediction = score >= 60 ? "Pass" : "Fail";
-    const confidence = Math.min(95, Math.max(65, score + (Math.random() * 10)));
+      const score = (
+        attendance * 0.25 +
+        (studyHours / 10) * 15 * 0.15 +
+        internalMarks * 0.35 +
+        (assignments / 10) * 10 * 0.15 +
+        (activities / 5) * 10 * 0.10
+      );
 
-    onPredict({ prediction, confidence });
-    toast.success("Prediction generated successfully!");
+      const prediction = score >= 60 ? "Pass" : "Fail";
+      const confidence = Math.min(95, Math.max(65, score + (Math.random() * 10)));
+
+      const { error: dbError } = await supabase
+        .from('predictions')
+        .insert({
+          student_id: formData.studentId,
+          attendance,
+          study_hours: studyHours,
+          internal_marks: internalMarks,
+          assignments,
+          activities,
+          prediction,
+          confidence,
+        });
+
+      if (dbError) {
+        console.error('Database error:', dbError);
+        toast.error("Failed to save to database");
+        return;
+      }
+
+      try {
+        const { error: sheetsError } = await supabase.functions.invoke('save-to-sheets', {
+          body: {
+            student_id: formData.studentId,
+            attendance,
+            study_hours: studyHours,
+            internal_marks: internalMarks,
+            assignments,
+            activities,
+            prediction,
+            confidence,
+          },
+        });
+
+        if (sheetsError) {
+          console.error('Google Sheets error:', sheetsError);
+          toast.warning("Saved to database but failed to sync with Google Sheets");
+        } else {
+          toast.success("Prediction saved successfully!");
+        }
+      } catch (sheetsError) {
+        console.error('Google Sheets error:', sheetsError);
+        toast.warning("Saved to database but failed to sync with Google Sheets");
+      }
+
+      onPredict({ prediction, confidence });
+    } catch (error) {
+      console.error('Error:', error);
+      toast.error("Failed to generate prediction");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleChange = (field: keyof FormData, value: string) => {
@@ -81,6 +134,18 @@ const ManualInputForm = ({ onPredict }: ManualInputFormProps) => {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="studentId">Student ID</Label>
+            <Input
+              id="studentId"
+              type="text"
+              placeholder="e.g., STU001"
+              value={formData.studentId}
+              onChange={(e) => handleChange("studentId", e.target.value)}
+              required
+            />
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="attendance">Attendance Percentage (%)</Label>
             <Input
@@ -154,8 +219,8 @@ const ManualInputForm = ({ onPredict }: ManualInputFormProps) => {
             />
           </div>
 
-          <Button type="submit" className="w-full" size="lg">
-            Predict Performance
+          <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+            {isLoading ? "Processing..." : "Predict Performance"}
           </Button>
         </form>
       </CardContent>

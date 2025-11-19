@@ -6,6 +6,7 @@ import PredictionResult from "@/components/PredictionResult";
 import BulkResultsTable from "@/components/BulkResultsTable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GraduationCap, Users } from "lucide-react";
+import educationHero from "@/assets/education-hero.jpg";
 
 interface PredictionResult {
   prediction: string;
@@ -29,13 +30,22 @@ const Index = () => {
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto space-y-8">
           {/* Hero Section */}
-          <div className="text-center space-y-4 py-8">
-            <h2 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-              AI-Powered Performance Prediction
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Predict student academic performance using machine learning based on attendance, study habits, and participation metrics
-            </p>
+          <div className="relative rounded-2xl overflow-hidden shadow-2xl">
+            <img 
+              src={educationHero} 
+              alt="Education and student success" 
+              className="w-full h-64 md:h-80 object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent flex items-end">
+              <div className="p-8 w-full text-center">
+                <h2 className="text-3xl md:text-5xl font-bold text-foreground mb-4">
+                  AI-Powered Performance Prediction
+                </h2>
+                <p className="text-lg text-foreground/90 max-w-2xl mx-auto">
+                  Predict student academic performance using machine learning based on attendance, study habits, and participation metrics
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Input Sections */}
