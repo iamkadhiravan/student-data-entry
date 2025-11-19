@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Upload, FileSpreadsheet, Download } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface BulkResult {
   studentId: string;
@@ -17,6 +18,7 @@ interface BulkUploadSectionProps {
 const BulkUploadSection = ({ onBulkPredict }: BulkUploadSectionProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -28,25 +30,97 @@ const BulkUploadSection = ({ onBulkPredict }: BulkUploadSectionProps) => {
     setIsDragging(false);
   }, []);
 
-  const processFile = (file: File) => {
+  const processCSV = async (csvText: string) => {
+    const lines = csvText.trim().split('\n');
+    
+    const predictions: BulkResult[] = [];
+    const insertData = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',');
+      if (values.length < 6) continue;
+
+      const studentId = values[0].trim();
+      const attendance = parseFloat(values[1]);
+      const studyHours = parseFloat(values[2]);
+      const internalMarks = parseFloat(values[3]);
+      const assignments = parseInt(values[4]);
+      const activities = parseInt(values[5]);
+
+      const score = (
+        attendance * 0.25 +
+        (studyHours / 10) * 15 * 0.15 +
+        internalMarks * 0.35 +
+        (assignments / 10) * 10 * 0.15 +
+        (activities / 5) * 10 * 0.10
+      );
+
+      const prediction = score >= 60 ? "Pass" : "Fail";
+      const confidence = Math.min(95, Math.max(65, score + (Math.random() * 10)));
+
+      predictions.push({ studentId, prediction, confidence });
+      insertData.push({
+        student_id: studentId,
+        attendance,
+        study_hours: studyHours,
+        internal_marks: internalMarks,
+        assignments,
+        activities,
+        prediction,
+        confidence,
+      });
+
+      try {
+        await supabase.functions.invoke('save-to-sheets', {
+          body: {
+            student_id: studentId,
+            attendance,
+            study_hours: studyHours,
+            internal_marks: internalMarks,
+            assignments,
+            activities,
+            prediction,
+            confidence,
+          },
+        });
+      } catch (error) {
+        console.error(`Failed to sync ${studentId} to Google Sheets:`, error);
+      }
+    }
+
+    const { error } = await supabase
+      .from('predictions')
+      .insert(insertData);
+
+    if (error) {
+      console.error('Database error:', error);
+      throw new Error('Failed to save to database');
+    }
+
+    return predictions;
+  };
+
+  const processFile = async (file: File) => {
     if (!file.name.endsWith('.csv')) {
       toast.error("Please upload a CSV file");
       return;
     }
 
     setFile(file);
+    setIsProcessing(true);
     
-    // Mock processing - in real app, would parse CSV and send to backend
-    const mockResults: BulkResult[] = [
-      { studentId: "STU001", prediction: "Pass", confidence: 87.5 },
-      { studentId: "STU002", prediction: "Fail", confidence: 72.3 },
-      { studentId: "STU003", prediction: "Pass", confidence: 91.2 },
-    ];
-
-    setTimeout(() => {
-      onBulkPredict(mockResults);
-      toast.success(`Successfully processed ${mockResults.length} student records`);
-    }, 1000);
+    try {
+      const text = await file.text();
+      const results = await processCSV(text);
+      
+      onBulkPredict(results);
+      toast.success(`Successfully processed ${results.length} student records`);
+    } catch (error) {
+      console.error('Error processing file:', error);
+      toast.error("Failed to process CSV file");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -67,7 +141,7 @@ const BulkUploadSection = ({ onBulkPredict }: BulkUploadSectionProps) => {
   };
 
   const downloadTemplate = () => {
-    const csvContent = "Student_ID,Attendance,Study_Hours,Internal_Marks,Assignments,Activities\nSTU001,85,20,75,8,3\nSTU002,65,10,55,5,1\n";
+    const csvContent = "Student_ID,Attendance,Study_Hours,Internal_Marks,Assignments,Activities\nSTU001,85,20,75,8,3\nSTU002,65,10,55,5,1\nSTU003,90,25,85,9,4\n";
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -103,7 +177,7 @@ const BulkUploadSection = ({ onBulkPredict }: BulkUploadSectionProps) => {
           >
             <FileSpreadsheet className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
             <p className="text-lg font-medium mb-2">
-              {file ? file.name : "Drag and drop your CSV file here"}
+              {isProcessing ? "Processing..." : file ? file.name : "Drag and drop your CSV file here"}
             </p>
             <p className="text-sm text-muted-foreground mb-4">
               or click to browse files
@@ -114,11 +188,12 @@ const BulkUploadSection = ({ onBulkPredict }: BulkUploadSectionProps) => {
               onChange={handleFileSelect}
               className="hidden"
               id="file-upload"
+              disabled={isProcessing}
             />
             <label htmlFor="file-upload">
-              <Button type="button" variant="outline" asChild>
+              <Button type="button" variant="outline" asChild disabled={isProcessing}>
                 <span className="cursor-pointer">
-                  Select CSV File
+                  {isProcessing ? "Processing..." : "Select CSV File"}
                 </span>
               </Button>
             </label>
