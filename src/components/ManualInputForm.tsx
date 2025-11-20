@@ -5,7 +5,6 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Calculator } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 
 interface FormData {
   studentId: string;
@@ -64,50 +63,7 @@ const ManualInputForm = ({ onPredict }: ManualInputFormProps) => {
       const prediction = score >= 60 ? "Pass" : "Fail";
       const confidence = Math.min(95, Math.max(65, score + (Math.random() * 10)));
 
-      const { error: dbError } = await supabase
-        .from('predictions')
-        .insert({
-          student_id: formData.studentId,
-          attendance,
-          study_hours: studyHours,
-          internal_marks: internalMarks,
-          assignments,
-          activities,
-          prediction,
-          confidence,
-        });
-
-      if (dbError) {
-        console.error('Database error:', dbError);
-        toast.error("Failed to save to database");
-        return;
-      }
-
-      try {
-        const { error: sheetsError } = await supabase.functions.invoke('save-to-sheets', {
-          body: {
-            student_id: formData.studentId,
-            attendance,
-            study_hours: studyHours,
-            internal_marks: internalMarks,
-            assignments,
-            activities,
-            prediction,
-            confidence,
-          },
-        });
-
-        if (sheetsError) {
-          console.error('Google Sheets error:', sheetsError);
-          toast.warning("Saved to database but failed to sync with Google Sheets");
-        } else {
-          toast.success("Prediction saved successfully!");
-        }
-      } catch (sheetsError) {
-        console.error('Google Sheets error:', sheetsError);
-        toast.warning("Saved to database but failed to sync with Google Sheets");
-      }
-
+      toast.success("Prediction generated successfully!");
       onPredict({ prediction, confidence });
     } catch (error) {
       console.error('Error:', error);

@@ -3,7 +3,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Upload, FileSpreadsheet, Download } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 
 interface BulkResult {
   studentId: string;
@@ -34,7 +33,6 @@ const BulkUploadSection = ({ onBulkPredict }: BulkUploadSectionProps) => {
     const lines = csvText.trim().split('\n');
     
     const predictions: BulkResult[] = [];
-    const insertData = [];
 
     for (let i = 1; i < lines.length; i++) {
       const values = lines[i].split(',');
@@ -59,42 +57,6 @@ const BulkUploadSection = ({ onBulkPredict }: BulkUploadSectionProps) => {
       const confidence = Math.min(95, Math.max(65, score + (Math.random() * 10)));
 
       predictions.push({ studentId, prediction, confidence });
-      insertData.push({
-        student_id: studentId,
-        attendance,
-        study_hours: studyHours,
-        internal_marks: internalMarks,
-        assignments,
-        activities,
-        prediction,
-        confidence,
-      });
-
-      try {
-        await supabase.functions.invoke('save-to-sheets', {
-          body: {
-            student_id: studentId,
-            attendance,
-            study_hours: studyHours,
-            internal_marks: internalMarks,
-            assignments,
-            activities,
-            prediction,
-            confidence,
-          },
-        });
-      } catch (error) {
-        console.error(`Failed to sync ${studentId} to Google Sheets:`, error);
-      }
-    }
-
-    const { error } = await supabase
-      .from('predictions')
-      .insert(insertData);
-
-    if (error) {
-      console.error('Database error:', error);
-      throw new Error('Failed to save to database');
     }
 
     return predictions;
