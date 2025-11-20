@@ -60,7 +60,7 @@ const ManualInputForm = ({ onPredict }: ManualInputFormProps) => {
         (activities / 5) * 10 * 0.10
       );
 
-      const prediction = score >= 60 ? "Pass" : "Fail";
+      const prediction = score >= 55 ? "Pass" : "Fail";
       const confidence = Math.min(95, Math.max(65, score + (Math.random() * 10)));
 
       toast.success("Prediction generated successfully!");
